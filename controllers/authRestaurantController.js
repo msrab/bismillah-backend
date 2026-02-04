@@ -1,6 +1,6 @@
 const bcrypt = require('bcrypt');
 const jwt    = require('jsonwebtoken');
-const { Restaurant, Street, City, RestaurantType, RestaurantTypeDescription, RestaurantLanguage, Language, PasswordResetToken } = require('../models');
+const { Restaurant, Street, City, Country, RestaurantType, RestaurantTypeDescription, RestaurantLanguage, Language, PasswordResetToken, RestaurantCertification, Certifier } = require('../models');
 const { createError } = require('../utils/createError');
 const { generateRestaurantSlug } = require('../utils/restaurantSlugHelper');
 
@@ -17,13 +17,23 @@ module.exports = {
         password,
         logo,
         website,
-        // Nouvelle méthode: cityId + streetName au lieu de streetId
-        cityId,
+        // Nouvelle méthode: cityName + postalCode
+        cityName,
+        postalCode,
+        countryId,
         streetName,
-        streetId,           // Ancienne méthode (rétrocompatibilité)
+        // Ancienne méthode (rétrocompatibilité)
+        cityId,
+        streetId,
+        // Type de restaurant
         restaurantTypeId,   // id d'un type existant
         restaurantType,     // objet pour créer un nouveau type
-        defaultLanguage     // langue par défaut (fr, en, nl, de)
+        defaultLanguage,    // langue par défaut (fr, en, nl, de)
+        // Certification halal
+        hasCertification,
+        certifierId,
+        customCertifierName,
+        certificationNumber
       } = req.body;
 
       const existEmail = await Restaurant.findOne({ where: { email } });
@@ -62,24 +72,40 @@ module.exports = {
 
       // Gestion de l'adresse (rue)
       let streetIdToUse = streetId; // Rétrocompatibilité
+      let cityIdToUse = cityId; // Rétrocompatibilité
 
-      // Nouvelle méthode: créer/trouver la rue à partir de cityId et streetName
-      if (cityId && streetName) {
-        // Vérifier que la ville existe
-        const city = await City.findByPk(cityId);
+      // ========== Gestion de la ville (créer si n'existe pas) ==========
+      if (cityName && postalCode) {
+        // Chercher la ville par nom et code postal
+        let city = await City.findOne({
+          where: { 
+            name: cityName.trim(),
+            postal_code: postalCode.trim()
+          }
+        });
+
         if (!city) {
-          return next(createError('Ville non trouvée.', 400));
+          // Créer la ville
+          city = await City.create({
+            name: cityName.trim(),
+            postal_code: postalCode.trim(),
+            countryId: countryId || 1 // Par défaut Belgique
+          });
         }
 
-        // Chercher ou créer la rue
+        cityIdToUse = city.id;
+      }
+
+      // ========== Gestion de la rue (créer si n'existe pas) ==========
+      if (streetName && cityIdToUse) {
         let street = await Street.findOne({ 
-          where: { name: streetName.trim(), cityId: cityId } 
+          where: { name: streetName.trim(), cityId: cityIdToUse } 
         });
         
         if (!street) {
           street = await Street.create({ 
             name: streetName.trim(), 
-            cityId: cityId 
+            cityId: cityIdToUse 
           });
         }
         
@@ -90,17 +116,15 @@ module.exports = {
         return next(createError('L\'adresse est requise.', 400));
       }
 
+      if (!cityIdToUse) {
+        return next(createError('La ville est requise.', 400));
+      }
+
       const hash = await bcrypt.hash(password, 10);
 
-
-
       // Slug généré automatiquement à partir du nom et de la ville (unique)
-      let cityName = '';
-      if (cityId) {
-        const city = await City.findByPk(cityId);
-        cityName = city ? city.name : '';
-      }
-      const slug = await generateRestaurantSlug(name, cityName, Restaurant);
+      const cityForSlug = await City.findByPk(cityIdToUse);
+      const slug = await generateRestaurantSlug(name, cityForSlug ? cityForSlug.name : '', Restaurant);
 
       const newRestaurant = await Restaurant.create({
         name,
@@ -111,9 +135,21 @@ module.exports = {
         email,
         password: hash,
         logo: logo || null,
+        website: website || null,
         streetId: streetIdToUse,
         restaurantTypeId: typeIdToUse
       });
+
+      // ========== Création de la certification (si applicable) ==========
+      if (hasCertification && certificationNumber) {
+        await RestaurantCertification.create({
+          restaurantId: newRestaurant.id,
+          certifierId: certifierId || null,
+          custom_certifier_name: customCertifierName || null,
+          certification_number: certificationNumber,
+          is_verified: false
+        });
+      }
 
       // Ajouter la langue par défaut si spécifiée
       if (defaultLanguage) {
@@ -134,6 +170,11 @@ module.exports = {
             model: Street, 
             as: 'street',
             include: [{ model: City, as: 'city' }]
+          },
+          {
+            model: RestaurantCertification,
+            as: 'certifications',
+            include: [{ model: Certifier, as: 'certifier' }]
           }
         ]
       });
