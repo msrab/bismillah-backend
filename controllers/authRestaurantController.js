@@ -15,7 +15,6 @@ module.exports = {
         phone,
         email,
         password,
-        logo,
         website,
         // Nouvelle méthode: cityName + postalCode
         cityName,
@@ -35,6 +34,18 @@ module.exports = {
         customCertifierName,
         certificationNumber
       } = req.body;
+
+      // Récupération du logo uploadé (si présent)
+      // Stocke le chemin relatif (ex: "uploads/restaurant/nom-resto/logo-xxx.png")
+      let logoPath = null;
+      if (req.file) {
+        // Convertit le chemin absolu en chemin relatif depuis le dossier backend
+        logoPath = req.file.path
+          .replace(/\\/g, '/')
+          .split('/uploads/')
+          .pop();
+        logoPath = 'uploads/' + logoPath;
+      }
 
       const existEmail = await Restaurant.findOne({ where: { email } });
       if (existEmail) {
@@ -134,7 +145,7 @@ module.exports = {
         phone: phone || null,
         email,
         password: hash,
-        logo: logo || null,
+        logo: logoPath,
         website: website || null,
         streetId: streetIdToUse,
         restaurantTypeId: typeIdToUse
