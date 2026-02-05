@@ -133,17 +133,21 @@ module.exports = {
 
       const hash = await bcrypt.hash(password, 10);
 
+      // ========== Transformations ==========
+      const normalizedName = name ? name.trim().toUpperCase() : '';
+      const normalizedEmail = email ? email.trim().toLowerCase() : '';
+
       // Slug généré automatiquement à partir du nom et de la ville (unique)
       const cityForSlug = await City.findByPk(cityIdToUse);
-      const slug = await generateRestaurantSlug(name, cityForSlug ? cityForSlug.name : '', Restaurant);
+      const slug = await generateRestaurantSlug(normalizedName, cityForSlug ? cityForSlug.name : '', Restaurant);
 
       const newRestaurant = await Restaurant.create({
-        name,
+        name: normalizedName,
         slug,
         company_number,
         address_number,
         phone: phone || null,
-        email,
+        email: normalizedEmail,
         password: hash,
         logo: logoPath,
         website: website || null,
