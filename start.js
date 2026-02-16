@@ -16,19 +16,14 @@ const PORT = process.env.PORT || 5000;
     await sequelize.authenticate();
     console.log('✅ Connexion à la base de données réussie !');
 
-    // 2) Exécuter les migrations en production
-    if (process.env.NODE_ENV === 'production') {
-      console.log('🔄 Exécution des migrations...');
-      try {
-        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit' });
-        console.log('✅ Migrations exécutées avec succès !');
-      } catch (migrationErr) {
-        console.error('⚠️ Erreur migration:', migrationErr.message);
-      }
-    } else {
-      // En développement, on synchronise directement
-      await sequelize.sync({ alter: true });
-      console.log('✅ Modèles synchronisés (alter).');
+    // 2) Exécuter les migrations
+    console.log('🔄 Exécution des migrations...');
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+    try {
+      execSync('npx sequelize-cli db:migrate', { stdio: 'inherit' });
+      console.log('✅ Migrations exécutées avec succès !');
+    } catch (migrationErr) {
+      console.error('⚠️ Erreur migration:', migrationErr.message);
     }
 
     // 3) Démarrer le serveur HTTP
