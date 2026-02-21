@@ -253,9 +253,16 @@ module.exports = {
         ]
       });
 
+      // Générer le token JWT pour connexion automatique
+      const token = jwt.sign(
+        { id: newRestaurant.id, type: 'restaurant' },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
       return res.status(201).json({
-        message: 'Inscription réussie ! Vous pouvez maintenant vous connecter.',
-        requiresVerification: false,
+        message: 'Inscription réussie !',
+        token,
         restaurant: restaurantWithAssociations
       });
     } catch (error) {
